@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import { setFavorite, useStore } from '../../data/store';
-import { formatAmount, formatIngredient, formatMinutes } from '../../recipe/ingredients';
+import { formatAmount, formatMinutes, formatQuantity } from '../../recipe/ingredients';
 import type { Ingredient, Step } from '../../recipe/types';
 import { href } from '../router';
 
@@ -21,6 +21,7 @@ export function RecipeView({ id }: { id: string }) {
   const r = recipes.find((x) => x.id === id);
   const [servings, setServings] = useState<number | null>(null);
   const [showSource, setShowSource] = useState(false);
+  const [omitted, setOmitted] = useState<Set<number>>(() => new Set());
 
   if (!r) return <p class="muted">{loading ? 'Henter…' : 'Opskriften findes ikke.'}</p>;
 
@@ -28,11 +29,19 @@ export function RecipeView({ id }: { id: string }) {
   const current = servings ?? base;
   const factor = base && current ? current / base : 1;
   const step = base && base % 1 === 0 ? 1 : 0.5;
-  const time = [
-    r.prep_minutes && `Forberedelse ${formatMinutes(r.prep_minutes)}`,
-    r.cook_minutes && `Tilberedning ${formatMinutes(r.cook_minutes)}`,
-    r.total_minutes && `I alt ${formatMinutes(r.total_minutes)}`,
-  ].filter(Boolean);
+  const time = (
+    [
+      ['Forberedelse', r.prep_minutes],
+      ['Tilberedning', r.cook_minutes],
+      ['I alt', r.total_minutes],
+    ] as const
+  ).filter(([, m]) => m);
+
+  function toggleOmit(i: number) {
+    const next = new Set(omitted);
+    if (!next.delete(i)) next.add(i);
+    setOmitted(next);
+  }
 
   return (
     <article class="recipe">
@@ -43,24 +52,42 @@ export function RecipeView({ id }: { id: string }) {
           {r.favorite ? '★' : '☆'}
         </button>
       </div>
-      <div class="muted small">
-        {[r.category, ...r.tags.map((t) => `#${t}`)].filter(Boolean).join(' · ')}
-      </div>
-      {r.description && <p>{r.description}</p>}
-      {time.length > 0 && <p class="muted small">{time.join(' · ')}</p>}
+      {(r.category || r.tags.length > 0) && (
+        <div class="tags">
+          {r.category && <span class="tag cat">{r.category}</span>}
+          {r.tags.map((t) => (
+            <span key={t} class="tag">
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
+      {r.description && <p class="lead">{r.description}</p>}
+      {time.length > 0 && (
+        <div class="stats">
+          {time.map(([label, m]) => (
+            <div key={label}>
+              <span class="stat-label">{label}</span>
+              <span class="stat-value">{formatMinutes(m!)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {r.flags.length > 0 && (
-        <div class="warn">
-          <strong>Tjek opskriften</strong>
+        <details class="warn">
+          <summary>
+            Tjek opskriften <span class="count">{r.flags.length}</span>
+          </summary>
           <ul>
             {r.flags.map((f) => (
               <li key={f}>{f}</li>
             ))}
           </ul>
-        </div>
+        </details>
       )}
 
-      <section>
+      <section class="panel">
         <div class="row between">
           <h3>Ingredienser</h3>
           {base && (
@@ -84,13 +111,19 @@ export function RecipeView({ id }: { id: string }) {
             {factor !== 1 && `mængder ganget med ${formatAmount(factor)}`}
           </p>
         )}
-        <IngredientList list={r.ingredients} factor={factor} />
+        <IngredientList list={r.ingredients} factor={factor} omitted={omitted} onToggle={toggleOmit} />
       </section>
 
       {r.equipment.length > 0 && (
         <section>
           <h3>Udstyr</h3>
-          <p class="muted">{r.equipment.join(', ')}</p>
+          <div class="tags">
+            {r.equipment.map((e) => (
+              <span key={e} class="tag">
+                {e}
+              </span>
+            ))}
+          </div>
         </section>
       )}
 
@@ -136,16 +169,33 @@ export function RecipeView({ id }: { id: string }) {
   );
 }
 
-function IngredientList({ list, factor }: { list: Ingredient[]; factor: number }) {
+function IngredientList(props: { list: Ingredient[]; factor: number; omitted: Set<number>; onToggle: (i: number) => void }) {
+  const { list, factor, omitted, onToggle } = props;
+  let n = 0;
   return (
     <>
       {groupBy(list).map(([group, items], i) => (
         <div key={i}>
           {group && <h4>{group}</h4>}
           <ul class="ingredients">
-            {items.map((ing, j) => (
-              <li key={j}>{formatIngredient(ing, factor)}</li>
-            ))}
+            {items.map((ing) => {
+              const idx = n++;
+              const off = omitted.has(idx);
+              return (
+                <li key={idx} class={off ? 'omitted' : undefined}>
+                  <span class="qty">{formatQuantity(ing, factor)}</span>
+                  <span class="what">
+                    <span class="name">{ing.name}</span>
+                    {ing.note && <span class="note">{ing.note}</span>}
+                  </span>
+                  {ing.optional && (
+                    <button class={`omit ${off ? 'on' : ''}`} aria-pressed={off} onClick={() => onToggle(idx)}>
+                      {off ? 'Tilføj' : 'Undlad'}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       ))}
@@ -163,7 +213,14 @@ function StepList({ list }: { list: Step[] }) {
           <ol class="steps" start={n + 1}>
             {items.map((s, j) => {
               n++;
-              return <li key={j}>{s.text}</li>;
+              return (
+                <li key={j}>
+                  <span class="num" aria-hidden="true">
+                    {n}
+                  </span>
+                  <span>{s.text}</span>
+                </li>
+              );
             })}
           </ol>
         </div>

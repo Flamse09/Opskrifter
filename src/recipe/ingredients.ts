@@ -82,7 +82,8 @@ export function formatMinutes(m: number): string {
   return rest ? `${h} t ${rest} min` : `${h} t`;
 }
 
-export function formatIngredient(ing: Ingredient, factor = 1): string {
+/** Amount and unit only, e.g. "1-2 fed". Empty when no amount or unit is given. */
+export function formatQuantity(ing: Ingredient, factor = 1): string {
   const parts: string[] = [];
   if (ing.amount !== undefined) {
     let amt = formatAmount(ing.amount * factor);
@@ -90,8 +91,12 @@ export function formatIngredient(ing: Ingredient, factor = 1): string {
     parts.push(amt);
   }
   if (ing.unit) parts.push(ing.unit);
-  parts.push(ing.name);
-  let s = parts.join(' ');
+  return parts.join(' ');
+}
+
+export function formatIngredient(ing: Ingredient, factor = 1): string {
+  const qty = formatQuantity(ing, factor);
+  let s = qty ? `${qty} ${ing.name}` : ing.name;
   if (ing.note) s += `, ${ing.note}`;
   if (ing.optional) s += ' (valgfri)';
   return s;

@@ -7,6 +7,13 @@ Frederik sender et billede, et link, en video eller en tekst og beder om at få 
    - YouTube: brug beskrivelsen og, hvis den kan hentes, udskriften. Linker beskrivelsen til en opskrift, så brug den. Står mængderne kun i selve billedet, så bed om skærmbilleder i stedet for at gætte.
    - Billede: læs teksten på billedet. Er noget ulæseligt, skal det markeres i `flags`.
 2. **Rens opskriften.** Fjern historier, reklamer og gentagelser. Bevar alt, der betyder noget for madlavningen: temperaturer, tider, hævetider, rækkefølge og tips.
+   **Skriv kort.** Opskriften læses på en telefon midt i madlavningen:
+   - Ét trin er én handling, højst to korte sætninger (ca. 150 tegn). Del lange trin op.
+   - Skriv i bydeform ("Bag 20 min"), og forkort tider til "min" og "t".
+   - Gentag ikke mængder fra ingredienslisten, medmindre en ingrediens bruges i flere omgange.
+   - `note` på en ingrediens er få ord ("finthakket", "stuetemperatur"). Lange forklaringer hører under `notes`.
+   - `flags` er én kort sætning hver. `description` er højst én–to sætninger.
+   - Grupper trinene med `group` (fx "Dej", "Hævning", "Bagning").
 3. **Opfind intet.** Mangler en mængde, så udelad `amount` og skriv det i `flags`, fx `"Mængden af salt er ikke angivet."`. Skriv også uklarheder og dine egne fortolkninger i `flags`.
 4. **Hold udstyr ude af ingredienserne.** Ovn, skål, pizzasten, bagepapir, film og lignende hører under `equipment`. Scriptet afviser opskrifter, hvor udstyr står som ingrediens.
 5. **Skriv på dansk.** Oversæt udenlandske opskrifter, og omregn cups/oz/°F til metriske enheder. Notér omregningen i `notes`.
