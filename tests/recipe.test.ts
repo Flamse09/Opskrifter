@@ -8,7 +8,7 @@ import {
   parseStepText,
   stepsToText,
 } from '../src/recipe/ingredients.ts';
-import { searchRecipes } from '../src/recipe/search.ts';
+import { groupByCategory, searchRecipes } from '../src/recipe/search.ts';
 import type { Recipe } from '../src/recipe/types.ts';
 import { looksLikeEquipment, validateRecipe } from '../src/recipe/validate.ts';
 
@@ -106,6 +106,17 @@ describe('searchRecipes', () => {
   it('filters on category and favourites', () => {
     expect(searchRecipes(all, { query: '', category: 'Suppe' })).toHaveLength(1);
     expect(searchRecipes(all, { query: '', favoritesOnly: true })).toHaveLength(1);
+  });
+
+  it('groups by category in fixed order, unknown after, none as Andet last', () => {
+    const list = [
+      mk('A', [], { category: 'Brød' }),
+      mk('B', []),
+      mk('C', [], { category: 'Grill' }),
+      mk('D', [], { category: 'Aftensmad' }),
+      mk('E', [], { category: 'Brød' }),
+    ];
+    expect(groupByCategory(list).map(([c, rs]) => `${c}:${rs.map((r) => r.title).join('')}`)).toEqual(['Aftensmad:D', 'Brød:AE', 'Grill:C', 'Andet:B']);
   });
 });
 

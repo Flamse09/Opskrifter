@@ -17,6 +17,7 @@ Frederik sender et billede, et link, en video eller en tekst og beder om at få 
 3. **Opfind intet.** Mangler en mængde, så udelad `amount` og skriv det i `flags`, fx `"Mængden af salt er ikke angivet."`. Skriv også uklarheder og dine egne fortolkninger i `flags`.
 4. **Hold udstyr ude af ingredienserne.** Ovn, skål, pizzasten, bagepapir, film og lignende hører under `equipment`. Scriptet afviser opskrifter, hvor udstyr står som ingrediens.
 5. **Skriv på dansk.** Oversæt udenlandske opskrifter, og omregn cups/oz/°F til metriske enheder. Notér omregningen i `notes`.
+   **Gær:** brug altid frisk gær som ingrediens og tørgær i `note`, fx `{ "name": "frisk gær", "amount": 20, "unit": "g", "note": "eller 7 g tørgær" }`. Omregn med 1 g tørgær ≈ 3 g frisk gær, og skriv omregningen i `notes`, hvis kilden kun angiver den ene slags. Frisk gær røres ud i lunkent vand (ca. 37 °C).
 6. **Gem en JSON-fil** i dit scratchpad (ikke i repoet), og kør først en tør test:
    ```
    node scripts/add-recipe.ts add <fil.json> --dry-run
@@ -42,11 +43,11 @@ Frederik sender et billede, et link, en video eller en tekst og beder om at få 
     { "name": "hvedemel", "amount": 600, "unit": "g", "note": "tipo 00" },
     { "name": "vand", "amount": 390, "unit": "g", "note": "koldt" },
     { "name": "salt", "amount": 18, "unit": "g" },
-    { "name": "tørgær", "amount": 1, "unit": "g" },
+    { "name": "frisk gær", "amount": 3, "unit": "g", "note": "eller 1 g tørgær" },
     { "group": "Til servering", "name": "basilikum", "optional": true }
   ],
   "steps": [
-    { "text": "Opløs gæren i vandet, og rør melet i." },
+    { "text": "Rør gæren ud i vandet, og rør melet i." },
     { "text": "Tilsæt salt efter 20 minutter, og ælt til dejen er glat." },
     { "group": "Hævning", "text": "Hæv dejen i køleskabet i 48 timer." }
   ],
