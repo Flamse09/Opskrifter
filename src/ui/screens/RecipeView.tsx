@@ -33,7 +33,7 @@ export function RecipeView({ id }: { id: string }) {
   const step = base && base % 1 === 0 ? 1 : 0.5;
   const time = (
     [
-      ['Forberedelse', r.prep_minutes],
+      ['Aktiv tid', r.prep_minutes],
       ['Tilberedning', r.cook_minutes],
       ['I alt', r.total_minutes],
     ] as const

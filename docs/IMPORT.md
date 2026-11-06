@@ -62,6 +62,7 @@ Frederik sender et billede, et link, en video eller en tekst og beder om at få 
 ```
 
 - **Påkrævet:** `title`, `ingredients`, `steps`. Sæt også `servings` eller `yield_text`, ellers kan opskriften ikke skaleres.
+- Tider i minutter: `prep_minutes` er den **aktive tid**, hvor man står med hænderne i maden (vises som "Aktiv tid"). `cook_minutes` er bage- eller kogetid. `total_minutes` er hele tiden inkl. hævning og hvile.
 - `source_type`: `web`, `video`, `image`, `text` eller `manual`.
 - `amount` er et tal (`0.5`, ikke `"½"`). Ved intervaller som "1-2 fed" bruges `amount` 1 og `amount_max` 2.
 - `unit`: brug korte danske enheder: `g`, `kg`, `ml`, `dl`, `l`, `tsk`, `spsk`, `knsp`, `stk`, `fed`, `dåse`, `bundt`.

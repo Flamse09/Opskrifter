@@ -79,8 +79,8 @@ function RecipeList({ list, showCategory = false }: { list: Recipe[]; showCatego
             </span>
             <span class="leader" aria-hidden="true" />
             <span class="time">
-              {r.flags.length > 0 && <span class="flag-dot" title="Har uklarheder">⚠︎ </span>}
               {r.total_minutes ? formatMinutes(r.total_minutes) : ''}
+              {r.prep_minutes ? <span class="active">aktiv {formatMinutes(r.prep_minutes)}</span> : null}
             </span>
           </a>
         </li>

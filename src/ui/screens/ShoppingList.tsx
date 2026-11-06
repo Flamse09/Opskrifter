@@ -19,6 +19,10 @@ export function ShoppingList() {
   }
   const titleOf = (k: string) => shopping.find((x) => (x.recipe_id ?? x.recipe_title) === k)?.recipe_title;
 
+  function confirmRemove(title: string, ids: string[]) {
+    if (confirm(`Fjern ${title} fra listen? ${ids.length} varer bliver slettet.`)) void removeShopping(ids);
+  }
+
   async function add(e: Event) {
     e.preventDefault();
     const lineTexts = text.split('\n').map((t) => t.trim()).filter(Boolean);
@@ -45,7 +49,7 @@ export function ShoppingList() {
       {recipes.size > 0 && (
         <div class="tags list-recipes">
           {[...recipes].map(([k, ids]) => (
-            <button key={k} class="tag removable" aria-label={`Fjern ${titleOf(k)} fra listen`} onClick={() => removeShopping(ids)}>
+            <button key={k} class="tag removable" aria-label={`Fjern ${titleOf(k)} fra listen`} onClick={() => confirmRemove(titleOf(k) ?? 'opskriften', ids)}>
               {titleOf(k)} <span aria-hidden="true">×</span>
             </button>
           ))}
