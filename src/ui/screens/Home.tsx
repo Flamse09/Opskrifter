@@ -72,15 +72,16 @@ function RecipeList({ list, showCategory = false }: { list: Recipe[]; showCatego
         <li key={r.id}>
           <a href={href({ name: 'recipe', id: r.id })} class="recipe-row">
             {r.image_url ? <img src={r.image_url} alt="" loading="lazy" /> : <div class="thumb-fallback">{r.title.slice(0, 1)}</div>}
-            <div>
-              <div class="title">
-                {r.title} {r.favorite && <span class="star">★</span>}
-              </div>
-              <div class="muted small">
-                {[showCategory && r.category, r.total_minutes && formatMinutes(r.total_minutes)].filter(Boolean).join(' · ')}
-                {r.flags.length > 0 && <span class="flag-dot" title="Har uklarheder"> · ⚠︎</span>}
-              </div>
-            </div>
+            <span class="title">
+              {r.title}
+              {r.favorite && <span class="star"> ★</span>}
+              {showCategory && r.category && <span class="sub">{r.category}</span>}
+            </span>
+            <span class="leader" aria-hidden="true" />
+            <span class="time">
+              {r.flags.length > 0 && <span class="flag-dot" title="Har uklarheder">⚠︎ </span>}
+              {r.total_minutes ? formatMinutes(r.total_minutes) : ''}
+            </span>
           </a>
         </li>
       ))}

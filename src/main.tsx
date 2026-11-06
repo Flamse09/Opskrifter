@@ -2,6 +2,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { render } from 'preact';
 import { refresh, setUpdateHandler, startStore } from './data/store';
 import { App } from './ui/App';
+import '@fontsource/caveat/latin-600.css';
 import './ui/styles.css';
 
 startStore();

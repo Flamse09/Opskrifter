@@ -8,6 +8,7 @@ export default defineConfig({
     preact(),
     VitePWA({
       registerType: 'prompt',
+      workbox: { globPatterns: ['**/*.{js,css,html,woff2}'] },
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png'],
       manifest: {
         name: 'Opskrifter',

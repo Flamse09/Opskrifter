@@ -33,8 +33,8 @@ export function ShoppingList() {
   }
 
   return (
-    <div>
-      <h2>Indkøbsliste</h2>
+    <div class="notebook">
+      <h2 class="hand">Indkøbsliste</h2>
       <form class="add-row" onSubmit={add}>
         <input placeholder="Tilføj vare, fx 2 l mælk" value={text} onInput={(e) => setText(e.currentTarget.value)} enterKeyHint="done" />
         <button class="primary" type="submit" disabled={!text.trim()}>

@@ -57,13 +57,17 @@ export function RecipeView({ id }: { id: string }) {
 
   return (
     <article class="recipe">
-      {r.image_url && <img class="hero" src={r.image_url} alt="" />}
-      <div class="row between">
-        <h2 class="recipe-title">{r.title}</h2>
-        <button class="icon-btn" aria-label={r.favorite ? 'Fjern favorit' : 'Gør til favorit'} onClick={() => setFavorite(r.id, !r.favorite)}>
+      {r.image_url && (
+        <figure class="photo">
+          <img src={r.image_url} alt="" />
+        </figure>
+      )}
+      <header class="recipe-head">
+        <button class="icon-btn fav" aria-label={r.favorite ? 'Fjern favorit' : 'Gør til favorit'} onClick={() => setFavorite(r.id, !r.favorite)}>
           {r.favorite ? '★' : '☆'}
         </button>
-      </div>
+        <h2 class="recipe-title">{r.title}</h2>
+      </header>
       {(r.category || r.tags.length > 0) && (
         <div class="tags">
           {r.category && <span class="tag cat">{r.category}</span>}
@@ -153,7 +157,7 @@ export function RecipeView({ id }: { id: string }) {
       </section>
 
       {r.notes && (
-        <section>
+        <section class="sticky-note">
           <h3>Noter</h3>
           <p class="pre">{r.notes}</p>
         </section>
