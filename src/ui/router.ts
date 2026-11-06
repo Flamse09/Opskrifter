@@ -4,13 +4,15 @@ export type Route =
   | { name: 'home' }
   | { name: 'recipe'; id: string }
   | { name: 'edit'; id?: string }
-  | { name: 'settings' };
+  | { name: 'settings' }
+  | { name: 'list' };
 
 export function parseRoute(hash: string): Route {
   const [, first, second] = hash.replace(/^#/, '').split('/');
   if (first === 'r' && second) return { name: 'recipe', id: second };
   if (first === 'edit') return second ? { name: 'edit', id: second } : { name: 'edit' };
   if (first === 'settings') return { name: 'settings' };
+  if (first === 'list') return { name: 'list' };
   return { name: 'home' };
 }
 
@@ -24,6 +26,8 @@ export function href(r: Route): string {
       return r.id ? `#/edit/${r.id}` : '#/edit';
     case 'settings':
       return '#/settings';
+    case 'list':
+      return '#/list';
   }
 }
 

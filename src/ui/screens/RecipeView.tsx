@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
-import { setFavorite, useStore } from '../../data/store';
+import { addShoppingRows, setFavorite, useStore } from '../../data/store';
+import { rowsFromRecipe } from '../../shopping/merge';
 import { formatAmount, formatMinutes, formatQuantity } from '../../recipe/ingredients';
 import type { Ingredient, Step } from '../../recipe/types';
 import { href } from '../router';
@@ -22,6 +23,7 @@ export function RecipeView({ id }: { id: string }) {
   const [servings, setServings] = useState<number | null>(null);
   const [showSource, setShowSource] = useState(false);
   const [omitted, setOmitted] = useState<Set<number>>(() => new Set());
+  const [added, setAdded] = useState<string | null>(null);
 
   if (!r) return <p class="muted">{loading ? 'Henter…' : 'Opskriften findes ikke.'}</p>;
 
@@ -36,6 +38,16 @@ export function RecipeView({ id }: { id: string }) {
       ['I alt', r.total_minutes],
     ] as const
   ).filter(([, m]) => m);
+
+  async function addToList() {
+    if (!r) return;
+    try {
+      const n = await addShoppingRows(rowsFromRecipe(r.ingredients, factor, omitted), { id: r.id, title: r.title });
+      setAdded(`${n} varer lagt på listen`);
+    } catch (e) {
+      setAdded((e as Error).message);
+    }
+  }
 
   function toggleOmit(i: number) {
     const next = new Set(omitted);
@@ -112,6 +124,14 @@ export function RecipeView({ id }: { id: string }) {
           </p>
         )}
         <IngredientList list={r.ingredients} factor={factor} omitted={omitted} onToggle={toggleOmit} />
+        <button class="primary add-list" onClick={addToList}>
+          🛒 Læg på indkøbslisten
+        </button>
+        {added && (
+          <p class="muted small center">
+            {added} · <a href={href({ name: 'list' })}>Se listen</a>
+          </p>
+        )}
       </section>
 
       {r.equipment.length > 0 && (

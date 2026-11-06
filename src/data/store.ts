@@ -1,6 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useEffect, useState } from 'preact/hooks';
 import type { Recipe, RecipeInput } from '../recipe/types';
+import type { ShoppingItem } from '../shopping/merge';
 import { supabase } from './supabase';
 
 export interface Household {
@@ -14,25 +15,26 @@ interface State {
   authReady: boolean;
   household: Household | null;
   recipes: Recipe[];
+  shopping: ShoppingItem[];
   loading: boolean;
   error: string | null;
 }
 
 const CACHE_KEY = 'opskrifter.cache.v1';
 
-function readCache(): Pick<State, 'household' | 'recipes'> {
+function readCache(): Pick<State, 'household' | 'recipes' | 'shopping'> {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return { shopping: [], ...JSON.parse(raw) };
   } catch {
     // ignore
   }
-  return { household: null, recipes: [] };
+  return { household: null, recipes: [], shopping: [] };
 }
 
 function writeCache() {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ household: state.household, recipes: state.recipes }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ household: state.household, recipes: state.recipes, shopping: state.shopping }));
   } catch {
     // ignore
   }
@@ -43,7 +45,7 @@ const listeners = new Set<() => void>();
 
 function set(patch: Partial<State>) {
   state = { ...state, ...patch };
-  if ('recipes' in patch || 'household' in patch) writeCache();
+  if ('recipes' in patch || 'household' in patch || 'shopping' in patch) writeCache();
   listeners.forEach((l) => l());
 }
 
@@ -66,20 +68,46 @@ async function load() {
   const h = await supabase.rpc('ensure_household');
   if (h.error) return set({ loading: false, error: h.error.message });
   const household = h.data as Household;
-  const r = await supabase.from('recipes').select('*').is('deleted_at', null);
+  const [r, sh] = await Promise.all([
+    supabase.from('recipes').select('*').is('deleted_at', null),
+    supabase.from('shopping_items').select('*').order('created_at'),
+  ]);
   if (r.error) return set({ loading: false, error: r.error.message });
-  set({ household, recipes: r.data as Recipe[], loading: false });
+  // The shopping table may not exist yet (migration 002); recipes still work without it.
+  set({ household, recipes: r.data as Recipe[], shopping: sh.error ? state.shopping : (sh.data as ShoppingItem[]), loading: false });
 
   channel?.unsubscribe();
   channel = supabase
-    .channel('recipes')
+    .channel('household')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'recipes', filter: `household_id=eq.${household.id}` }, (p) => {
       const row = p.new as Recipe;
       if (!row?.id) return;
       upsertLocal(row);
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'shopping_items' }, (p) => {
+      if (p.eventType === 'DELETE') {
+        const id = (p.old as { id?: string }).id;
+        if (id) set({ shopping: state.shopping.filter((x) => x.id !== id) });
+        return;
+      }
+      const row = p.new as ShoppingItem;
+      if (row?.id && row.household_id === household.id) set({ shopping: [...state.shopping.filter((x) => x.id !== row.id), row] });
+    })
     .subscribe();
 }
+
+let inFlight: Promise<void> | null = null;
+/** Refetches everything (and reconnects live updates). Concurrent calls share one fetch. */
+export function refresh(): Promise<void> {
+  if (!state.user) return Promise.resolve();
+  inFlight ??= load().finally(() => (inFlight = null));
+  return inFlight;
+}
+
+let updateHandler: () => Promise<unknown> = refresh;
+export const setUpdateHandler = (h: () => Promise<unknown>) => (updateHandler = h);
+/** The ↻ button: installs a waiting app version, otherwise refetches data. */
+export const runUpdate = () => updateHandler();
 
 function upsertLocal(row: Recipe) {
   const rest = state.recipes.filter((x) => x.id !== row.id);
@@ -94,7 +122,7 @@ export function startStore() {
     if (!user) {
       channel?.unsubscribe();
       channel = null;
-      if (event === 'SIGNED_OUT') set({ household: null, recipes: [] });
+      if (event === 'SIGNED_OUT') set({ household: null, recipes: [], shopping: [] });
     } else if (changed) {
       // Defer: calling Supabase inside this callback can deadlock the auth lock.
       setTimeout(() => void load(), 0);
@@ -134,4 +162,57 @@ export async function joinHousehold(code: string): Promise<string | null> {
   if (error) return error.message === 'Ukendt kode' ? 'Koden findes ikke.' : error.message;
   await load();
   return null;
+}
+
+// ---------- Shopping list ----------
+
+type NewRow = { name: string; amount: number | null; unit: string | null; note?: string | null };
+
+function newItem(row: NewRow, recipe?: { id: string; title: string }): ShoppingItem {
+  return {
+    id: crypto.randomUUID(),
+    household_id: state.household!.id,
+    created_at: new Date().toISOString(),
+    name: row.name,
+    amount: row.amount,
+    unit: row.unit,
+    note: row.note ?? null,
+    recipe_id: recipe?.id ?? null,
+    recipe_title: recipe?.title ?? null,
+    checked: false,
+  };
+}
+
+/** Shows the change at once and writes it in the background; on failure the list is refetched. */
+async function optimistic(next: ShoppingItem[], write: () => PromiseLike<{ error: { message: string } | null }>) {
+  set({ shopping: next, error: null });
+  const { error } = await write();
+  if (error) {
+    set({ error: error.message });
+    await refresh();
+  }
+}
+
+export async function addShoppingRows(rows: NewRow[], recipe?: { id: string; title: string }) {
+  if (!state.household) throw new Error('Ingen husstand indlæst endnu.');
+  const items = rows.map((r) => newItem(r, recipe));
+  await optimistic([...state.shopping, ...items], () => supabase.from('shopping_items').insert(items));
+  return items.length;
+}
+
+export async function setChecked(ids: string[], checked: boolean) {
+  const idSet = new Set(ids);
+  await optimistic(
+    state.shopping.map((x) => (idSet.has(x.id) ? { ...x, checked } : x)),
+    () => supabase.from('shopping_items').update({ checked }).in('id', ids),
+  );
+}
+
+export async function removeShopping(ids: string[]) {
+  if (ids.length === 0) return;
+  const idSet = new Set(ids);
+  await optimistic(
+    state.shopping.filter((x) => !idSet.has(x.id)),
+    () => supabase.from('shopping_items').delete().in('id', ids),
+  );
 }
