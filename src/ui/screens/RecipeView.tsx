@@ -151,10 +151,12 @@ export function RecipeView({ id }: { id: string }) {
         </section>
       )}
 
-      <section>
-        <h3>Fremgangsmåde</h3>
-        <StepList list={r.steps} />
-      </section>
+      {r.steps.length > 0 && (
+        <section>
+          <h3>Fremgangsmåde</h3>
+          <StepList list={r.steps} />
+        </section>
+      )}
 
       {r.notes && (
         <section class="sticky-note">
