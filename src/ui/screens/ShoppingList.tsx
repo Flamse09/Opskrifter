@@ -89,7 +89,7 @@ export function ShoppingList() {
         </section>
       ))}
 
-      {toBuy.length > 0 && <p class="hint center list-hint">Hold fingeren på en vare for at flytte den til en anden afdeling.</p>}
+      {toBuy.length > 0 && <p class="hint center list-hint">Hold fingeren på en vare for at flytte eller fjerne den.</p>}
 
       {inCart.length > 0 && (
         <section>
@@ -109,9 +109,9 @@ export function ShoppingList() {
 
       {moving && (
         <div class="sheet-backdrop" onClick={() => setMoving(null)}>
-          <div class="sheet" role="dialog" aria-label={`Flyt ${moving.name}`} onClick={(e) => e.stopPropagation()}>
-            <h3>Flyt {moving.name}</h3>
-            <p class="muted small">Vælg afdeling. Mise husker det til næste gang.</p>
+          <div class="sheet" role="dialog" aria-label={moving.name} onClick={(e) => e.stopPropagation()}>
+            <h3>{moving.name}</h3>
+            <p class="muted small">Flyt til en anden afdeling. Mise husker det til næste gang.</p>
             <div class="sheet-options">
               {SECTIONS.map((sec) => {
                 const current = sectionOf(moving.name, sections) === sec;
@@ -130,6 +130,15 @@ export function ShoppingList() {
                 );
               })}
             </div>
+            <button
+              class="sheet-remove"
+              onClick={() => {
+                void removeShopping(moving.ids);
+                setMoving(null);
+              }}
+            >
+              <Icon name="x" size={18} /> Fjern fra listen
+            </button>
             <button class="sheet-cancel" onClick={() => setMoving(null)}>
               Annuller
             </button>
