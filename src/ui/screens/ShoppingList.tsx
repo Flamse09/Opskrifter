@@ -89,7 +89,7 @@ export function ShoppingList() {
         </section>
       ))}
 
-      {toBuy.length > 0 && <p class="hint center list-hint">Hold fingeren på en vare for at flytte eller fjerne den.</p>}
+      {toBuy.length > 0 && <p class="hint center list-hint">Stryg til venstre for at fjerne en vare. Hold fingeren på den for at flytte den til en anden afdeling.</p>}
 
       {inCart.length > 0 && (
         <section>
@@ -149,47 +149,87 @@ export function ShoppingList() {
   );
 }
 
-/** Tap ticks the item off; holding it (or right-clicking) opens the section picker. */
+const SWIPE_REMOVE = 90; // px to the left before letting go removes the item
+
+/**
+ * Tap ticks the item off. Swipe left removes it (a ticked item stays in the history, an unticked one is forgotten).
+ * Holding it, or right-clicking, opens the section picker.
+ */
 function Line({ line, onMove }: { line: MergedLine; onMove: () => void }) {
   const sub = [line.exact && `præcis ${line.exact}`, ...line.notes, ...line.sources].filter(Boolean).join(' · ');
   const timer = useRef<number | undefined>(undefined);
   const start = useRef<[number, number] | null>(null);
-  const held = useRef(false);
-
-  const cancel = () => {
-    clearTimeout(timer.current);
-    start.current = null;
+  const swiping = useRef(false);
+  const suppressClick = useRef(false);
+  const [dx, setDxState] = useState(0);
+  const dxRef = useRef(0);
+  const setDx = (v: number) => {
+    dxRef.current = v;
+    setDxState(v);
   };
+  const [settling, setSettling] = useState(false);
+
   const down = (e: PointerEvent) => {
-    held.current = false;
+    suppressClick.current = false;
+    swiping.current = false;
+    setSettling(false);
     start.current = [e.clientX, e.clientY];
     timer.current = window.setTimeout(() => {
-      held.current = true;
+      suppressClick.current = true;
+      start.current = null;
       navigator.vibrate?.(10);
       onMove();
     }, 450);
   };
   const move = (e: PointerEvent) => {
-    if (start.current && Math.hypot(e.clientX - start.current[0], e.clientY - start.current[1]) > 10) cancel();
+    if (!start.current) return;
+    const x = e.clientX - start.current[0];
+    const y = e.clientY - start.current[1];
+    if (!swiping.current) {
+      if (Math.hypot(x, y) > 10) clearTimeout(timer.current);
+      if (x < -10 && Math.abs(x) > Math.abs(y)) {
+        swiping.current = true;
+        (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+      } else if (Math.hypot(x, y) > 10) {
+        start.current = null; // a scroll or a right swipe: leave it alone
+        return;
+      }
+    }
+    if (swiping.current) setDx(Math.min(0, x));
+  };
+  const up = () => {
+    clearTimeout(timer.current);
+    start.current = null;
+    if (!swiping.current) return;
+    swiping.current = false;
+    suppressClick.current = true;
+    setSettling(true);
+    if (dxRef.current <= -SWIPE_REMOVE) {
+      setDx(-window.innerWidth);
+      window.setTimeout(() => void removeShopping(line.ids), 180);
+    } else setDx(0);
   };
 
   return (
-    <li>
+    <li class="swipe">
+      <span class="swipe-bg" aria-hidden="true" style={{ opacity: Math.min(1, -dx / SWIPE_REMOVE) }}>
+        <Icon name="x" size={18} /> Fjern
+      </span>
       <button
-        class="row-btn"
+        class={`row-btn ${settling ? 'settling' : ''}`}
+        style={dx ? { transform: `translateX(${dx}px)` } : undefined}
         aria-pressed={line.checked}
         onPointerDown={down}
         onPointerMove={move}
-        onPointerUp={cancel}
-        onPointerCancel={cancel}
-        onPointerLeave={cancel}
+        onPointerUp={up}
+        onPointerCancel={up}
         onContextMenu={(e) => {
           e.preventDefault();
-          if (!held.current) onMove();
-          held.current = true;
+          if (!suppressClick.current) onMove();
+          suppressClick.current = true;
         }}
         onClick={() => {
-          if (held.current) return void (held.current = false);
+          if (suppressClick.current) return void (suppressClick.current = false);
           void setChecked(line.ids, !line.checked);
         }}
       >
