@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import { addShoppingRows, removeShopping, setChecked, useStore } from '../../data/store';
 import { parseIngredientLine } from '../../recipe/ingredients';
 import { mergeItems, type MergedLine } from '../../shopping/merge';
+import { Icon } from '../icons';
 
 export function ShoppingList() {
   const { shopping } = useStore();
@@ -37,20 +38,33 @@ export function ShoppingList() {
   }
 
   return (
-    <div class="notebook">
-      <h2>Indkøbsliste</h2>
-      <form class="add-row" onSubmit={add}>
-        <input placeholder="Tilføj vare, fx 2 l mælk" value={text} onInput={(e) => setText(e.currentTarget.value)} enterKeyHint="done" />
-        <button class="primary" type="submit" disabled={!text.trim()}>
-          Tilføj
-        </button>
+    <div>
+      <div class="page-head">
+        <h2>Indkøb</h2>
+        <p class="muted small">
+          {toBuy.length === 0 ? 'Intet at købe' : `${toBuy.length} ${toBuy.length === 1 ? 'vare' : 'varer'}`}
+          {recipes.size > 0 && ` · fra ${recipes.size} ${recipes.size === 1 ? 'opskrift' : 'opskrifter'}`}
+        </p>
+      </div>
+
+      <form class="add-box" onSubmit={add}>
+        <div class="add-line">
+          <Icon name="plus" size={20} />
+          <input placeholder="Tilføj vare, fx 2 l mælk" value={text} onInput={(e) => setText(e.currentTarget.value)} enterKeyHint="done" />
+          {text.trim() && (
+            <button class="primary small-btn" type="submit">
+              Tilføj
+            </button>
+          )}
+        </div>
       </form>
 
       {recipes.size > 0 && (
-        <div class="tags list-recipes">
+        <div class="chips-wrap">
           {[...recipes].map(([k, ids]) => (
-            <button key={k} class="tag removable" aria-label={`Fjern ${titleOf(k)} fra listen`} onClick={() => confirmRemove(titleOf(k) ?? 'opskriften', ids)}>
-              {titleOf(k)} <span aria-hidden="true">×</span>
+            <button key={k} class="pill" aria-label={`Fjern ${titleOf(k)} fra listen`} onClick={() => confirmRemove(titleOf(k) ?? 'opskriften', ids)}>
+              {titleOf(k)}
+              <Icon name="x" size={14} />
             </button>
           ))}
         </div>
@@ -58,14 +72,11 @@ export function ShoppingList() {
 
       {lines.length === 0 && (
         <div class="empty">
-          <p>
-            <strong>Listen er tom.</strong>
-          </p>
-          <p class="muted">Skriv en vare ovenfor, eller tryk "Læg på indkøbslisten" på en opskrift.</p>
+          <p class="muted">Skriv en vare ovenfor, eller læg en opskrift på listen fra Opskrifter.</p>
         </div>
       )}
 
-      <ul class="shop">
+      <ul class="rows">
         {toBuy.map((l) => (
           <Line key={l.key} line={l} />
         ))}
@@ -73,13 +84,13 @@ export function ShoppingList() {
 
       {inCart.length > 0 && (
         <section>
-          <div class="row between">
-            <h4 class="group-title">I kurven {inCart.length}</h4>
+          <div class="section-head">
+            <h4>I kurven · {inCart.length}</h4>
             <button class="link" onClick={() => removeShopping(inCart.flatMap((l) => l.ids))}>
               Ryd
             </button>
           </div>
-          <ul class="shop done">
+          <ul class="rows done">
             {inCart.map((l) => (
               <Line key={l.key} line={l} />
             ))}
@@ -94,16 +105,15 @@ function Line({ line }: { line: MergedLine }) {
   const sub = [line.exact && `præcis ${line.exact}`, ...line.notes, ...line.sources].filter(Boolean).join(' · ');
   return (
     <li>
-      <button class="shop-line" aria-pressed={line.checked} onClick={() => setChecked(line.ids, !line.checked)}>
+      <button class="row-btn" aria-pressed={line.checked} onClick={() => setChecked(line.ids, !line.checked)}>
         <span class="check" aria-hidden="true">
-          {line.checked ? '✓' : ''}
+          {line.checked && <Icon name="check" size={14} />}
         </span>
         <span class="what">
-          <span class="name">
-            {line.qty && <span class="qty">{line.qty}</span>} {line.name}
-          </span>
-          {sub && <span class="note">{sub}</span>}
+          <span class="name">{line.name}</span>
+          {sub && <span class="sub">{sub}</span>}
         </span>
+        {line.qty && <span class="qty">{line.qty}</span>}
       </button>
     </li>
   );

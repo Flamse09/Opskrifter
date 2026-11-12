@@ -3,6 +3,7 @@ import { addShoppingRows, setFavorite, useStore } from '../../data/store';
 import { rowsFromRecipe } from '../../shopping/merge';
 import { formatAmount, formatMinutes, formatQuantity } from '../../recipe/ingredients';
 import type { Ingredient, Step } from '../../recipe/types';
+import { Icon } from '../icons';
 import { href } from '../router';
 
 function groupBy<T extends { group?: string }>(list: T[]): [string | undefined, T[]][] {
@@ -64,7 +65,7 @@ export function RecipeView({ id }: { id: string }) {
       )}
       <header class="recipe-head">
         <button class="icon-btn fav" aria-label={r.favorite ? 'Fjern favorit' : 'Gør til favorit'} onClick={() => setFavorite(r.id, !r.favorite)}>
-          {r.favorite ? '★' : '☆'}
+          <Icon name="star" filled={r.favorite} />
         </button>
         <h2 class="recipe-title">{r.title}</h2>
       </header>
@@ -129,11 +130,11 @@ export function RecipeView({ id }: { id: string }) {
         )}
         <IngredientList list={r.ingredients} factor={factor} omitted={omitted} onToggle={toggleOmit} />
         <button class="primary add-list" onClick={addToList}>
-          🛒 Læg på indkøbslisten
+          <Icon name="list" size={20} /> Læg på indkøbslisten
         </button>
         {added && (
           <p class="muted small center">
-            {added} · <a href={href({ name: 'list' })}>Se listen</a>
+            {added} · <a href={href({ name: 'home' })}>Se listen</a>
           </p>
         )}
       </section>

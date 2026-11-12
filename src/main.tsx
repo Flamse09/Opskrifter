@@ -2,7 +2,7 @@ import { registerSW } from 'virtual:pwa-register';
 import { render } from 'preact';
 import { refresh, setUpdateHandler, startStore } from './data/store';
 import { App } from './ui/App';
-import '@fontsource/caveat/latin-600.css';
+import '@fontsource-variable/schibsted-grotesk/wght.css';
 import './ui/styles.css';
 
 startStore();
@@ -11,7 +11,7 @@ render(<App />, document.getElementById('app')!);
 // A new version is applied only on the list screens, so an update never interrupts an edit.
 let updateReady = false;
 let registration: ServiceWorkerRegistration | undefined;
-const onSafeScreen = () => ['', '#', '#/', '#/list'].includes(location.hash);
+const onSafeScreen = () => ['', '#', '#/', '#/list', '#/opskrifter', '#/fryser'].includes(location.hash);
 const updateSW = registerSW({
   onNeedRefresh() {
     updateReady = true;

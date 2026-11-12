@@ -1,33 +1,37 @@
 import { useEffect, useState } from 'preact/hooks';
 
 export type Route =
-  | { name: 'home' }
+  | { name: 'home' } // the shopping list
+  | { name: 'freezer' }
+  | { name: 'recipes' }
   | { name: 'recipe'; id: string }
   | { name: 'edit'; id?: string }
-  | { name: 'settings' }
-  | { name: 'list' };
+  | { name: 'settings' };
 
 export function parseRoute(hash: string): Route {
   const [, first, second] = hash.replace(/^#/, '').split('/');
   if (first === 'r' && second) return { name: 'recipe', id: second };
   if (first === 'edit') return second ? { name: 'edit', id: second } : { name: 'edit' };
   if (first === 'settings') return { name: 'settings' };
-  if (first === 'list') return { name: 'list' };
-  return { name: 'home' };
+  if (first === 'opskrifter') return { name: 'recipes' };
+  if (first === 'fryser') return { name: 'freezer' };
+  return { name: 'home' }; // also the old #/list
 }
 
 export function href(r: Route): string {
   switch (r.name) {
     case 'home':
       return '#/';
+    case 'freezer':
+      return '#/fryser';
+    case 'recipes':
+      return '#/opskrifter';
     case 'recipe':
       return `#/r/${r.id}`;
     case 'edit':
       return r.id ? `#/edit/${r.id}` : '#/edit';
     case 'settings':
       return '#/settings';
-    case 'list':
-      return '#/list';
   }
 }
 

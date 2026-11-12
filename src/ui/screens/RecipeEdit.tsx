@@ -81,7 +81,7 @@ export function RecipeEdit({ id }: { id?: string }) {
   async function remove() {
     if (!id || !confirm(`Slet "${existing?.title}"?`)) return;
     await deleteRecipe(id);
-    navigate({ name: 'home' }, true);
+    navigate({ name: 'recipes' }, true);
   }
 
   return (

@@ -2,6 +2,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { useEffect, useState } from 'preact/hooks';
 import type { Recipe, RecipeInput } from '../recipe/types';
 import type { ShoppingItem } from '../shopping/merge';
+import type { FreezerItem } from '../freezer/freezer';
 import { supabase } from './supabase';
 
 export interface Household {
@@ -16,25 +17,26 @@ interface State {
   household: Household | null;
   recipes: Recipe[];
   shopping: ShoppingItem[];
+  freezer: FreezerItem[];
   loading: boolean;
   error: string | null;
 }
 
 const CACHE_KEY = 'opskrifter.cache.v1';
 
-function readCache(): Pick<State, 'household' | 'recipes' | 'shopping'> {
+function readCache(): Pick<State, 'household' | 'recipes' | 'shopping' | 'freezer'> {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    if (raw) return { shopping: [], ...JSON.parse(raw) };
+    if (raw) return { shopping: [], freezer: [], ...JSON.parse(raw) };
   } catch {
     // ignore
   }
-  return { household: null, recipes: [], shopping: [] };
+  return { household: null, recipes: [], shopping: [], freezer: [] };
 }
 
 function writeCache() {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ household: state.household, recipes: state.recipes, shopping: state.shopping }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ household: state.household, recipes: state.recipes, shopping: state.shopping, freezer: state.freezer }));
   } catch {
     // ignore
   }
@@ -45,7 +47,7 @@ const listeners = new Set<() => void>();
 
 function set(patch: Partial<State>) {
   state = { ...state, ...patch };
-  if ('recipes' in patch || 'household' in patch || 'shopping' in patch) writeCache();
+  if ('recipes' in patch || 'household' in patch || 'shopping' in patch || 'freezer' in patch) writeCache();
   listeners.forEach((l) => l());
 }
 
@@ -68,13 +70,20 @@ async function load() {
   const h = await supabase.rpc('ensure_household');
   if (h.error) return set({ loading: false, error: h.error.message });
   const household = h.data as Household;
-  const [r, sh] = await Promise.all([
+  const [r, sh, fr] = await Promise.all([
     supabase.from('recipes').select('*').is('deleted_at', null),
     supabase.from('shopping_items').select('*').order('created_at'),
+    supabase.from('freezer_items').select('*'),
   ]);
   if (r.error) return set({ loading: false, error: r.error.message });
-  // The shopping table may not exist yet (migration 002); recipes still work without it.
-  set({ household, recipes: r.data as Recipe[], shopping: sh.error ? state.shopping : (sh.data as ShoppingItem[]), loading: false });
+  // A table from a newer migration may not exist yet; the rest still works without it.
+  set({
+    household,
+    recipes: r.data as Recipe[],
+    shopping: sh.error ? state.shopping : (sh.data as ShoppingItem[]),
+    freezer: fr.error ? state.freezer : (fr.data as FreezerItem[]),
+    loading: false,
+  });
 
   channel?.unsubscribe();
   channel = supabase
@@ -92,6 +101,15 @@ async function load() {
       }
       const row = p.new as ShoppingItem;
       if (row?.id && row.household_id === household.id) set({ shopping: [...state.shopping.filter((x) => x.id !== row.id), row] });
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'freezer_items' }, (p) => {
+      if (p.eventType === 'DELETE') {
+        const id = (p.old as { id?: string }).id;
+        if (id) set({ freezer: state.freezer.filter((x) => x.id !== id) });
+        return;
+      }
+      const row = p.new as FreezerItem;
+      if (row?.id && row.household_id === household.id) set({ freezer: [...state.freezer.filter((x) => x.id !== row.id), row] });
     })
     .subscribe();
 }
@@ -122,7 +140,7 @@ export function startStore() {
     if (!user) {
       channel?.unsubscribe();
       channel = null;
-      if (event === 'SIGNED_OUT') set({ household: null, recipes: [], shopping: [] });
+      if (event === 'SIGNED_OUT') set({ household: null, recipes: [], shopping: [], freezer: [] });
     } else if (changed) {
       // Defer: calling Supabase inside this callback can deadlock the auth lock.
       setTimeout(() => void load(), 0);
@@ -185,7 +203,11 @@ function newItem(row: NewRow, recipe?: { id: string; title: string }): ShoppingI
 
 /** Shows the change at once and writes it in the background; on failure the list is refetched. */
 async function optimistic(next: ShoppingItem[], write: () => PromiseLike<{ error: { message: string } | null }>) {
-  set({ shopping: next, error: null });
+  await optimisticPatch({ shopping: next }, write);
+}
+
+async function optimisticPatch(patch: Partial<State>, write: () => PromiseLike<{ error: { message: string } | null }>) {
+  set({ ...patch, error: null });
   const { error } = await write();
   if (error) {
     set({ error: error.message });
@@ -215,4 +237,25 @@ export async function removeShopping(ids: string[]) {
     state.shopping.filter((x) => !idSet.has(x.id)),
     () => supabase.from('shopping_items').delete().in('id', ids),
   );
+}
+
+// ---------- Freezer ----------
+
+type NewFreezerItem = { name: string; amount: number | null; unit: string | null; note?: string | null; frozen_on: string };
+
+export async function addFreezerItem(row: NewFreezerItem) {
+  if (!state.household) throw new Error('Ingen husstand indlæst endnu.');
+  const item: FreezerItem = { id: crypto.randomUUID(), household_id: state.household.id, created_at: new Date().toISOString(), note: null, ...row };
+  await optimisticPatch({ freezer: [...state.freezer, item] }, () => supabase.from('freezer_items').insert(item));
+}
+
+export async function setFreezerAmount(id: string, amount: number) {
+  await optimisticPatch(
+    { freezer: state.freezer.map((x) => (x.id === id ? { ...x, amount } : x)) },
+    () => supabase.from('freezer_items').update({ amount }).eq('id', id),
+  );
+}
+
+export async function removeFreezerItem(id: string) {
+  await optimisticPatch({ freezer: state.freezer.filter((x) => x.id !== id) }, () => supabase.from('freezer_items').delete().eq('id', id));
 }

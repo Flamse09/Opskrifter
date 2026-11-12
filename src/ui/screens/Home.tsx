@@ -3,6 +3,7 @@ import { useStore } from '../../data/store';
 import { formatMinutes } from '../../recipe/ingredients';
 import { groupByCategory, searchRecipes } from '../../recipe/search';
 import type { Recipe } from '../../recipe/types';
+import { Icon } from '../icons';
 import { href } from '../router';
 
 export function Home() {
@@ -20,10 +21,14 @@ export function Home() {
 
   return (
     <div>
+      <div class="page-head">
+        <h2>Opskrifter</h2>
+        <p class="muted small">{recipes.length} i alt</p>
+      </div>
       <input type="search" placeholder="Søg på ret eller ingrediens" value={query} onInput={(e) => updateQuery(e.currentTarget.value)} />
       <div class="chips scroll-row">
         <button class={`chip ${favs ? 'on' : ''}`} onClick={() => setFavs(!favs)}>
-          ★ Favoritter
+          <Icon name="star" size={15} filled={favs} /> Favoritter
         </button>
       </div>
 
@@ -59,7 +64,7 @@ export function Home() {
       )}
 
       <a href={href({ name: 'edit' })} class="fab" aria-label="Ny opskrift">
-        +
+        <Icon name="plus" size={26} />
       </a>
     </div>
   );
@@ -74,7 +79,12 @@ function RecipeList({ list, showCategory = false }: { list: Recipe[]; showCatego
             {r.image_url ? <img src={r.image_url} alt="" loading="lazy" /> : <div class="thumb-fallback">{r.title.slice(0, 1)}</div>}
             <span class="title">
               {r.title}
-              {r.favorite && <span class="star"> ★</span>}
+              {r.favorite && (
+                <span class="star">
+                  {' '}
+                  <Icon name="star" size={13} filled />
+                </span>
+              )}
               {showCategory && r.category && <span class="sub">{r.category}</span>}
             </span>
             <span class="leader" aria-hidden="true" />
