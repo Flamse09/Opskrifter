@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import { addShoppingRows, removeShopping, setChecked, useStore } from '../../data/store';
 import { parseIngredientLine } from '../../recipe/ingredients';
 import { mergeItems, type MergedLine } from '../../shopping/merge';
+import { groupBySection } from '../../shopping/sections';
 import { Icon } from '../icons';
 
 export function ShoppingList() {
@@ -76,11 +77,16 @@ export function ShoppingList() {
         </div>
       )}
 
-      <ul class="rows">
-        {toBuy.map((l) => (
-          <Line key={l.key} line={l} />
-        ))}
-      </ul>
+      {groupBySection(toBuy).map(([section, items]) => (
+        <section key={section}>
+          <h4 class="aisle">{section}</h4>
+          <ul class="rows">
+            {items.map((l) => (
+              <Line key={l.key} line={l} />
+            ))}
+          </ul>
+        </section>
+      ))}
 
       {inCart.length > 0 && (
         <section>
