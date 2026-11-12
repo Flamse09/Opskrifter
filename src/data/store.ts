@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { Recipe, RecipeInput } from '../recipe/types';
 import type { ShoppingItem } from '../shopping/merge';
 import type { FreezerItem } from '../freezer/freezer';
+import { nameKey, type Overrides } from '../shopping/sections';
 import { supabase } from './supabase';
 
 export interface Household {
@@ -18,25 +19,26 @@ interface State {
   recipes: Recipe[];
   shopping: ShoppingItem[];
   freezer: FreezerItem[];
+  sections: Overrides; // store sections the household has chosen, by item name key
   loading: boolean;
   error: string | null;
 }
 
 const CACHE_KEY = 'opskrifter.cache.v1';
 
-function readCache(): Pick<State, 'household' | 'recipes' | 'shopping' | 'freezer'> {
+function readCache(): Pick<State, 'household' | 'recipes' | 'shopping' | 'freezer' | 'sections'> {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    if (raw) return { shopping: [], freezer: [], ...JSON.parse(raw) };
+    if (raw) return { shopping: [], freezer: [], sections: {}, ...JSON.parse(raw) };
   } catch {
     // ignore
   }
-  return { household: null, recipes: [], shopping: [], freezer: [] };
+  return { household: null, recipes: [], shopping: [], freezer: [], sections: {} };
 }
 
 function writeCache() {
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ household: state.household, recipes: state.recipes, shopping: state.shopping, freezer: state.freezer }));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ household: state.household, recipes: state.recipes, shopping: state.shopping, freezer: state.freezer, sections: state.sections }));
   } catch {
     // ignore
   }
@@ -47,7 +49,7 @@ const listeners = new Set<() => void>();
 
 function set(patch: Partial<State>) {
   state = { ...state, ...patch };
-  if ('recipes' in patch || 'household' in patch || 'shopping' in patch || 'freezer' in patch) writeCache();
+  if ('recipes' in patch || 'household' in patch || 'shopping' in patch || 'freezer' in patch || 'sections' in patch) writeCache();
   listeners.forEach((l) => l());
 }
 
@@ -70,10 +72,11 @@ async function load() {
   const h = await supabase.rpc('ensure_household');
   if (h.error) return set({ loading: false, error: h.error.message });
   const household = h.data as Household;
-  const [r, sh, fr] = await Promise.all([
+  const [r, sh, fr, so] = await Promise.all([
     supabase.from('recipes').select('*').is('deleted_at', null),
     supabase.from('shopping_items').select('*').order('created_at'),
     supabase.from('freezer_items').select('*'),
+    supabase.from('section_overrides').select('name_key, section'),
   ]);
   if (r.error) return set({ loading: false, error: r.error.message });
   // A table from a newer migration may not exist yet; the rest still works without it.
@@ -82,6 +85,7 @@ async function load() {
     recipes: r.data as Recipe[],
     shopping: sh.error ? state.shopping : (sh.data as ShoppingItem[]),
     freezer: fr.error ? state.freezer : (fr.data as FreezerItem[]),
+    sections: so.error ? state.sections : Object.fromEntries((so.data as { name_key: string; section: string }[]).map((x) => [x.name_key, x.section])),
     loading: false,
   });
 
@@ -101,6 +105,10 @@ async function load() {
       }
       const row = p.new as ShoppingItem;
       if (row?.id && row.household_id === household.id) set({ shopping: [...state.shopping.filter((x) => x.id !== row.id), row] });
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'section_overrides' }, (p) => {
+      const row = p.new as { household_id?: string; name_key?: string; section?: string };
+      if (row?.name_key && row.section && row.household_id === household.id) set({ sections: { ...state.sections, [row.name_key]: row.section } });
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'freezer_items' }, (p) => {
       if (p.eventType === 'DELETE') {
@@ -140,7 +148,7 @@ export function startStore() {
     if (!user) {
       channel?.unsubscribe();
       channel = null;
-      if (event === 'SIGNED_OUT') set({ household: null, recipes: [], shopping: [], freezer: [] });
+      if (event === 'SIGNED_OUT') set({ household: null, recipes: [], shopping: [], freezer: [], sections: {} });
     } else if (changed) {
       // Defer: calling Supabase inside this callback can deadlock the auth lock.
       setTimeout(() => void load(), 0);
@@ -258,4 +266,16 @@ export async function setFreezerAmount(id: string, amount: number) {
 
 export async function removeFreezerItem(id: string) {
   await optimisticPatch({ freezer: state.freezer.filter((x) => x.id !== id) }, () => supabase.from('freezer_items').delete().eq('id', id));
+}
+
+// ---------- Store sections ----------
+
+/** Remembers which store section an item belongs to, for this household. */
+export async function setSection(name: string, section: string) {
+  if (!state.household) throw new Error('Ingen husstand indlæst endnu.');
+  const key = nameKey(name);
+  const household_id = state.household.id;
+  await optimisticPatch({ sections: { ...state.sections, [key]: section } }, () =>
+    supabase.from('section_overrides').upsert({ household_id, name_key: key, section, updated_at: new Date().toISOString() }),
+  );
 }

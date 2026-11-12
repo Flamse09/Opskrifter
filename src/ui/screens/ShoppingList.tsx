@@ -1,13 +1,14 @@
-import { useState } from 'preact/hooks';
-import { addShoppingRows, removeShopping, setChecked, useStore } from '../../data/store';
+import { useRef, useState } from 'preact/hooks';
+import { addShoppingRows, removeShopping, setChecked, setSection, useStore } from '../../data/store';
 import { parseIngredientLine } from '../../recipe/ingredients';
 import { mergeItems, type MergedLine } from '../../shopping/merge';
-import { groupBySection } from '../../shopping/sections';
+import { groupBySection, SECTIONS, sectionOf } from '../../shopping/sections';
 import { Icon } from '../icons';
 
 export function ShoppingList() {
-  const { shopping } = useStore();
+  const { shopping, sections } = useStore();
   const [text, setText] = useState('');
+  const [moving, setMoving] = useState<MergedLine | null>(null);
   const lines = mergeItems(shopping);
   const toBuy = lines.filter((l) => !l.checked);
   const inCart = lines.filter((l) => l.checked);
@@ -77,16 +78,18 @@ export function ShoppingList() {
         </div>
       )}
 
-      {groupBySection(toBuy).map(([section, items]) => (
+      {groupBySection(toBuy, sections).map(([section, items]) => (
         <section key={section}>
           <h4 class="aisle">{section}</h4>
           <ul class="rows">
             {items.map((l) => (
-              <Line key={l.key} line={l} />
+              <Line key={l.key} line={l} onMove={() => setMoving(l)} />
             ))}
           </ul>
         </section>
       ))}
+
+      {toBuy.length > 0 && <p class="hint center list-hint">Hold fingeren på en vare for at flytte den til en anden afdeling.</p>}
 
       {inCart.length > 0 && (
         <section>
@@ -98,20 +101,89 @@ export function ShoppingList() {
           </div>
           <ul class="rows done">
             {inCart.map((l) => (
-              <Line key={l.key} line={l} />
+              <Line key={l.key} line={l} onMove={() => setMoving(l)} />
             ))}
           </ul>
         </section>
+      )}
+
+      {moving && (
+        <div class="sheet-backdrop" onClick={() => setMoving(null)}>
+          <div class="sheet" role="dialog" aria-label={`Flyt ${moving.name}`} onClick={(e) => e.stopPropagation()}>
+            <h3>Flyt {moving.name}</h3>
+            <p class="muted small">Vælg afdeling. Mise husker det til næste gang.</p>
+            <div class="sheet-options">
+              {SECTIONS.map((sec) => {
+                const current = sectionOf(moving.name, sections) === sec;
+                return (
+                  <button
+                    key={sec}
+                    class={current ? 'on' : undefined}
+                    onClick={() => {
+                      void setSection(moving.name, sec);
+                      setMoving(null);
+                    }}
+                  >
+                    {sec}
+                    {current && <Icon name="check" size={18} />}
+                  </button>
+                );
+              })}
+            </div>
+            <button class="sheet-cancel" onClick={() => setMoving(null)}>
+              Annuller
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-function Line({ line }: { line: MergedLine }) {
+/** Tap ticks the item off; holding it (or right-clicking) opens the section picker. */
+function Line({ line, onMove }: { line: MergedLine; onMove: () => void }) {
   const sub = [line.exact && `præcis ${line.exact}`, ...line.notes, ...line.sources].filter(Boolean).join(' · ');
+  const timer = useRef<number | undefined>(undefined);
+  const start = useRef<[number, number] | null>(null);
+  const held = useRef(false);
+
+  const cancel = () => {
+    clearTimeout(timer.current);
+    start.current = null;
+  };
+  const down = (e: PointerEvent) => {
+    held.current = false;
+    start.current = [e.clientX, e.clientY];
+    timer.current = window.setTimeout(() => {
+      held.current = true;
+      navigator.vibrate?.(10);
+      onMove();
+    }, 450);
+  };
+  const move = (e: PointerEvent) => {
+    if (start.current && Math.hypot(e.clientX - start.current[0], e.clientY - start.current[1]) > 10) cancel();
+  };
+
   return (
     <li>
-      <button class="row-btn" aria-pressed={line.checked} onClick={() => setChecked(line.ids, !line.checked)}>
+      <button
+        class="row-btn"
+        aria-pressed={line.checked}
+        onPointerDown={down}
+        onPointerMove={move}
+        onPointerUp={cancel}
+        onPointerCancel={cancel}
+        onPointerLeave={cancel}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (!held.current) onMove();
+          held.current = true;
+        }}
+        onClick={() => {
+          if (held.current) return void (held.current = false);
+          void setChecked(line.ids, !line.checked);
+        }}
+      >
         <span class="check" aria-hidden="true">
           {line.checked && <Icon name="check" size={14} />}
         </span>

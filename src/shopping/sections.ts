@@ -74,17 +74,28 @@ function startsAWord(text: string, keyword: string): boolean {
   return false;
 }
 
-export function sectionOf(name: string): Section {
+/** Chosen sections by item name key (see nameKey). */
+export type Overrides = Record<string, string>;
+
+/** The key an item's chosen section is stored under: lower-case and trimmed. */
+export const nameKey = (name: string) => fold(name);
+
+const isSection = (s: string | undefined): s is Section => !!s && (SECTIONS as readonly string[]).includes(s);
+
+/** The household's own choice wins; otherwise the keyword list decides. */
+export function sectionOf(name: string, overrides: Overrides = {}): Section {
+  const chosen = overrides[nameKey(name)];
+  if (isSection(chosen)) return chosen;
   const text = fold(name);
   for (const [keyword, section] of RULES) if (startsAWord(text, keyword)) return section;
   return 'Andet';
 }
 
 /** Groups items by section in walking order; empty sections are left out. */
-export function groupBySection<T extends { name: string }>(items: T[]): [Section, T[]][] {
+export function groupBySection<T extends { name: string }>(items: T[], overrides: Overrides = {}): [Section, T[]][] {
   const groups = new Map<Section, T[]>();
   for (const it of items) {
-    const s = sectionOf(it.name);
+    const s = sectionOf(it.name, overrides);
     groups.set(s, [...(groups.get(s) ?? []), it]);
   }
   return SECTIONS.filter((s) => groups.has(s)).map((s) => [s, groups.get(s)!]);

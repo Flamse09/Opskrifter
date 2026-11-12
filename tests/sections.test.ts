@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupBySection, sectionOf } from '../src/shopping/sections.ts';
+import { groupBySection, nameKey, sectionOf } from '../src/shopping/sections.ts';
 
 describe('sectionOf', () => {
   it('places the ingredients from our recipes', () => {
@@ -43,5 +43,15 @@ describe('groupBySection', () => {
   it('keeps walking order and skips empty sections', () => {
     const groups = groupBySection([{ name: 'mælk' }, { name: 'bananer' }, { name: 'gaveæske' }, { name: 'ost' }]);
     expect(groups.map(([s, items]) => `${s}:${items.length}`)).toEqual(['Frugt og grønt:1', 'Mejeri og æg:2', 'Andet:1']);
+  });
+});
+
+describe('chosen sections', () => {
+  it('lets the household override the keyword list, by name and case-insensitive', () => {
+    const overrides = { [nameKey('Gaveæske ')]: 'Husholdning', mascarpone: 'Kolonial', ost: 'Ikke en afdeling' };
+    expect(sectionOf('gaveæske', overrides)).toBe('Husholdning');
+    expect(sectionOf('Mascarpone', overrides)).toBe('Kolonial');
+    expect(sectionOf('ost', overrides)).toBe('Mejeri og æg'); // unknown section names are ignored
+    expect(groupBySection([{ name: 'gaveæske' }], overrides)[0][0]).toBe('Husholdning');
   });
 });
